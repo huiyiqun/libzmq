@@ -46,6 +46,7 @@ namespace zmq
 #if defined ZMQ_HAVE_VMCI
     class vmci_address_t;
 #endif
+    class rsocket_address_t;
     struct address_t {
         address_t (const std::string &protocol_, const std::string &address_, ctx_t *parent_);
 
@@ -68,6 +69,7 @@ namespace zmq
 #if defined ZMQ_HAVE_VMCI
             vmci_address_t *vmci_addr;
 #endif
+            rsocket_address_t *rsocket_addr;
         } resolved;
 
         int to_string (std::string &addr_) const;

@@ -444,7 +444,7 @@ int zmq::socket_poller_t::wait (zmq::socket_poller_t::event_t *events_, int n_ev
 
         //  Wait for events.
         while (true) {
-            int rc = poll (pollfds, poll_size, timeout);
+            int rc = rpoll (pollfds, poll_size, timeout);
             if (rc == -1 && errno == EINTR) {
                 return -1;
             }

@@ -192,6 +192,14 @@ src_libzmq_la_SOURCES = \
 	src/tcp_connecter.hpp \
 	src/tcp_listener.cpp \
 	src/tcp_listener.hpp \
+	src/rsocket.cpp \
+	src/rsocket.hpp \
+	src/rsocket_address.cpp \
+	src/rsocket_address.hpp \
+	src/rsocket_connecter.cpp \
+	src/rsocket_connecter.hpp \
+	src/rsocket_listener.cpp \
+	src/rsocket_listener.hpp \
 	src/thread.cpp \
 	src/thread.hpp \
 	src/timers.cpp \

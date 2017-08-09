@@ -42,6 +42,7 @@
 #else
 #include <sys/select.h>
 #endif
+#include <rdma/rsocket.h>
 
 #include "err.hpp"
 #include "config.hpp"
@@ -343,7 +344,7 @@ void zmq::select_t::loop ()
         }
 #else
         fds_set_t local_fds_set = fds_set;
-        rc = select (maxfd + 1, &local_fds_set.read, &local_fds_set.write,
+        rc = rselect (maxfd + 1, &local_fds_set.read, &local_fds_set.write,
             &local_fds_set.error, timeout ? &tv : NULL);
 
         if (rc == -1) {

@@ -58,7 +58,7 @@
 #include "config.hpp"
 #include "err.hpp"
 #include "ip.hpp"
-#include "tcp.hpp"
+#include "rsocket.hpp"
 #include "likely.hpp"
 #include "wire.hpp"
 
@@ -313,7 +313,7 @@ void zmq::stream_engine_t::in_event ()
         size_t bufsize = 0;
         decoder->get_buffer (&inpos, &bufsize);
 
-        const int rc = tcp_read (s, inpos, bufsize);
+        const int rc = rsocket_read (s, inpos, bufsize);
 
         if (rc == 0) {
             // connection closed by peer
@@ -405,7 +405,7 @@ void zmq::stream_engine_t::out_event ()
     //  arbitrarily large. However, we assume that underlying TCP layer has
     //  limited transmission buffer and thus the actual number of bytes
     //  written should be reasonably modest.
-    const int nbytes = tcp_write (s, outpos, outsize);
+    const int nbytes = rsocket_write (s, outpos, outsize);
 
     //  IO error has occurred. We stop waiting for output events.
     //  The engine is not terminated until we detect input error;
@@ -494,7 +494,7 @@ bool zmq::stream_engine_t::handshake ()
     zmq_assert (greeting_bytes_read < greeting_size);
     //  Receive the greeting.
     while (greeting_bytes_read < greeting_size) {
-        const int n = tcp_read (s, greeting_recv + greeting_bytes_read,
+        const int n = rsocket_read (s, greeting_recv + greeting_bytes_read,
                                 greeting_size - greeting_bytes_read);
         if (n == 0) {
             errno = EPIPE;

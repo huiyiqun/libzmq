@@ -33,19 +33,19 @@
 #include <string>
 #include <stdio.h>
 
-#include "tcp_listener.hpp"
+#include "rsocket_listener.hpp"
 #include "stream_engine.hpp"
 #include "io_thread.hpp"
 #include "session_base.hpp"
 #include "config.hpp"
 #include "err.hpp"
 #include "ip.hpp"
-#include "tcp.hpp"
+#include "rsocket.hpp"
 #include "socket_base.hpp"
 
 #ifndef ZMQ_HAVE_WINDOWS
 #include <unistd.h>
-#include <sys/socket.h>
+#include <rdma/rsocket.h>
 #include <arpa/inet.h>
 #include <netinet/tcp.h>
 #include <netinet/in.h>
@@ -57,7 +57,7 @@
 #include <ioctl.h>
 #endif
 
-zmq::tcp_listener_t::tcp_listener_t (io_thread_t *io_thread_,
+zmq::rsocket_listener_t::rsocket_listener_t (io_thread_t *io_thread_,
       socket_base_t *socket_, const options_t &options_) :
     own_t (io_thread_, options_),
     io_object_t (io_thread_),
@@ -67,26 +67,26 @@ zmq::tcp_listener_t::tcp_listener_t (io_thread_t *io_thread_,
 {
 }
 
-zmq::tcp_listener_t::~tcp_listener_t ()
+zmq::rsocket_listener_t::~rsocket_listener_t ()
 {
     zmq_assert (s == retired_fd);
 }
 
-void zmq::tcp_listener_t::process_plug ()
+void zmq::rsocket_listener_t::process_plug ()
 {
     //  Start polling for incoming connections.
     handle = add_fd (s);
     set_pollin (handle);
 }
 
-void zmq::tcp_listener_t::process_term (int linger_)
+void zmq::rsocket_listener_t::process_term (int linger_)
 {
     rm_fd (handle);
     close ();
     own_t::process_term (linger_);
 }
 
-void zmq::tcp_listener_t::in_event ()
+void zmq::rsocket_listener_t::in_event ()
 {
     fd_t fd = accept ();
 
@@ -97,10 +97,10 @@ void zmq::tcp_listener_t::in_event ()
         return;
     }
 
-    int rc = tune_tcp_socket (fd);
-    rc = rc | tune_tcp_keepalives (fd, options.tcp_keepalive, options.tcp_keepalive_cnt,
+    int rc = tune_rsocket_socket (fd);
+    rc = rc | tune_rsocket_keepalives (fd, options.tcp_keepalive, options.tcp_keepalive_cnt,
         options.tcp_keepalive_idle, options.tcp_keepalive_intvl);
-    rc = rc | tune_tcp_maxrt (fd, options.tcp_maxrt);
+    rc = rc | tune_rsocket_maxrt (fd, options.tcp_maxrt);
     if (rc != 0) {
         socket->event_accept_failed (endpoint, zmq_errno());
         return;
@@ -126,21 +126,21 @@ void zmq::tcp_listener_t::in_event ()
     socket->event_accepted (endpoint, (int) fd);
 }
 
-void zmq::tcp_listener_t::close ()
+void zmq::rsocket_listener_t::close ()
 {
     zmq_assert (s != retired_fd);
 #ifdef ZMQ_HAVE_WINDOWS
     int rc = closesocket (s);
     wsa_assert (rc != SOCKET_ERROR);
 #else
-    int rc = ::close (s);
+    int rc = ::rclose (s);
     errno_assert (rc == 0);
 #endif
     socket->event_closed (endpoint, (int) s);
     s = retired_fd;
 }
 
-int zmq::tcp_listener_t::get_address (std::string &addr_)
+int zmq::rsocket_listener_t::get_address (std::string &addr_)
 {
     // Get the details of the TCP socket
     struct sockaddr_storage ss;
@@ -149,18 +149,18 @@ int zmq::tcp_listener_t::get_address (std::string &addr_)
 #else
     socklen_t sl = sizeof (ss);
 #endif
-    int rc = getsockname (s, (struct sockaddr *) &ss, &sl);
+    int rc = rgetsockname (s, (struct sockaddr *) &ss, &sl);
 
     if (rc != 0) {
         addr_.clear ();
         return rc;
     }
 
-    tcp_address_t addr ((struct sockaddr *) &ss, sl);
+    rsocket_address_t addr ((struct sockaddr *) &ss, sl);
     return addr.to_string (addr_);
 }
 
-int zmq::tcp_listener_t::set_address (const char *addr_)
+int zmq::rsocket_listener_t::set_address (const char *addr_)
 {
     //  Convert the textual address into address structure.
     int rc = address.resolve (addr_, true, options.ipv6);
@@ -176,7 +176,7 @@ int zmq::tcp_listener_t::set_address (const char *addr_)
     }
 
     //  Create a listening socket.
-    s = open_socket (address.family (), SOCK_STREAM, IPPROTO_TCP);
+    s = rsocket (address.family (), SOCK_STREAM, IPPROTO_TCP);
 
     //  IPv6 address family not supported, try automatic downgrade to IPv4.
     if (s == zmq::retired_fd && address.family () == AF_INET6
@@ -185,7 +185,7 @@ int zmq::tcp_listener_t::set_address (const char *addr_)
         rc = address.resolve (addr_, true, false);
         if (rc != 0)
             return rc;
-        s = open_socket (AF_INET, SOCK_STREAM, IPPROTO_TCP);
+        s = rsocket (AF_INET, SOCK_STREAM, IPPROTO_TCP);
     }
 
 #ifdef ZMQ_HAVE_WINDOWS
@@ -218,23 +218,23 @@ int zmq::tcp_listener_t::set_address (const char *addr_)
 
     //  Set the socket buffer limits for the underlying socket.
     if (options.sndbuf >= 0)
-        set_tcp_send_buffer (s, options.sndbuf);
+        set_rsocket_send_buffer (s, options.sndbuf);
     if (options.rcvbuf >= 0)
-        set_tcp_receive_buffer (s, options.rcvbuf);
+        set_rsocket_receive_buffer (s, options.rcvbuf);
 
     //  Allow reusing of the address.
     int flag = 1;
 #ifdef ZMQ_HAVE_WINDOWS
-    rc = setsockopt (s, SOL_SOCKET, SO_EXCLUSIVEADDRUSE,
+    rc = rsetsockopt (s, SOL_SOCKET, SO_EXCLUSIVEADDRUSE,
         (const char*) &flag, sizeof (int));
     wsa_assert (rc != SOCKET_ERROR);
 #else
-    rc = setsockopt (s, SOL_SOCKET, SO_REUSEADDR, &flag, sizeof (int));
+    rc = rsetsockopt (s, SOL_SOCKET, SO_REUSEADDR, &flag, sizeof (int));
     errno_assert (rc == 0);
 #endif
 
     //  Bind the socket to the network interface and port.
-    rc = bind (s, address.addr (), address.addrlen ());
+    rc = rbind (s, address.addr (), address.addrlen ());
 #ifdef ZMQ_HAVE_WINDOWS
     if (rc == SOCKET_ERROR) {
         errno = wsa_error_to_errno (WSAGetLastError ());
@@ -246,7 +246,7 @@ int zmq::tcp_listener_t::set_address (const char *addr_)
 #endif
 
     //  Listen for incoming connections.
-    rc = listen (s, options.backlog);
+    rc = rlisten (s, options.backlog);
 #ifdef ZMQ_HAVE_WINDOWS
     if (rc == SOCKET_ERROR) {
         errno = wsa_error_to_errno (WSAGetLastError ());
@@ -267,7 +267,7 @@ error:
     return -1;
 }
 
-zmq::fd_t zmq::tcp_listener_t::accept ()
+zmq::fd_t zmq::rsocket_listener_t::accept ()
 {
     //  The situation where connection cannot be accepted due to insufficient
     //  resources is considered valid and treated by ignoring the connection.
@@ -281,11 +281,7 @@ zmq::fd_t zmq::tcp_listener_t::accept ()
 #else
     socklen_t ss_len = sizeof (ss);
 #endif
-#if defined ZMQ_HAVE_SOCK_CLOEXEC
-    fd_t sock = ::accept4 (s, (struct sockaddr *) &ss, &ss_len, SOCK_CLOEXEC);
-#else
-    fd_t sock = ::accept (s, (struct sockaddr *) &ss, &ss_len);
-#endif
+    fd_t sock = ::raccept (s, (struct sockaddr *) &ss, &ss_len);
 
 #ifdef ZMQ_HAVE_WINDOWS
     if (sock == INVALID_SOCKET) {
@@ -314,7 +310,7 @@ zmq::fd_t zmq::tcp_listener_t::accept ()
 #if !defined ZMQ_HAVE_SOCK_CLOEXEC && defined FD_CLOEXEC
     //  Race condition can cause socket not to be closed (if fork happens
     //  between accept and this point).
-    int rc = fcntl (sock, F_SETFD, FD_CLOEXEC);
+    int rc = rfcntl (sock, F_SETFD, FD_CLOEXEC);
     errno_assert (rc != -1);
 #endif
 
@@ -331,7 +327,7 @@ zmq::fd_t zmq::tcp_listener_t::accept ()
             int rc = closesocket (sock);
             wsa_assert (rc != SOCKET_ERROR);
 #else
-            int rc = ::close (sock);
+            int rc = ::rclose (sock);
             errno_assert (rc == 0);
 #endif
             return retired_fd;
@@ -343,7 +339,7 @@ zmq::fd_t zmq::tcp_listener_t::accept ()
         int rc = closesocket (sock);
         wsa_assert (rc != SOCKET_ERROR);
 #else
-        int rc = ::close (sock);
+        int rc = ::rclose (sock);
         errno_assert (rc == 0);
 #endif
         return retired_fd;

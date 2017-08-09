@@ -35,6 +35,7 @@
 #if !defined ZMQ_HAVE_WINDOWS
 #include <sys/time.h>
 #include <poll.h>
+#include <rdma/rsocket.h>
 #endif
 #include <algorithm>
 
@@ -141,7 +142,7 @@ void zmq::poll_t::loop ()
         int timeout = (int) execute_timers ();
 
         //  Wait for events.
-        int rc = poll (&pollset [0], pollset.size (), timeout ? timeout : -1);
+        int rc = rpoll (&pollset [0], pollset.size (), timeout ? timeout : -1);
         if (rc == -1) {
             errno_assert (errno == EINTR);
             continue;

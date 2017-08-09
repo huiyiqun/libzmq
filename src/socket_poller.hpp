@@ -42,6 +42,8 @@
 #include <unistd.h>
 #endif
 
+#include <rdma/rsocket.h>
+
 #include <vector>
 #include <algorithm>
 

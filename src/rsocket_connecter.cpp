@@ -32,21 +32,21 @@
 #include <string>
 
 #include "macros.hpp"
-#include "tcp_connecter.hpp"
+#include "rsocket_connecter.hpp"
 #include "stream_engine.hpp"
 #include "io_thread.hpp"
 #include "random.hpp"
 #include "err.hpp"
 #include "ip.hpp"
-#include "tcp.hpp"
+#include "rsocket.hpp"
 #include "address.hpp"
-#include "tcp_address.hpp"
+#include "rsocket_address.hpp"
 #include "session_base.hpp"
 
 #if !defined ZMQ_HAVE_WINDOWS
 #include <unistd.h>
 #include <sys/types.h>
-#include <sys/socket.h>
+#include <rdma/rsocket.h>
 #include <arpa/inet.h>
 #include <netinet/tcp.h>
 #include <netinet/in.h>
@@ -57,7 +57,7 @@
 #endif
 #endif
 
-zmq::tcp_connecter_t::tcp_connecter_t (class io_thread_t *io_thread_,
+zmq::rsocket_connecter_t::rsocket_connecter_t (class io_thread_t *io_thread_,
       class session_base_t *session_, const options_t &options_,
       address_t *addr_, bool delayed_start_) :
     own_t (io_thread_, options_),
@@ -73,12 +73,12 @@ zmq::tcp_connecter_t::tcp_connecter_t (class io_thread_t *io_thread_,
     current_reconnect_ivl (options.reconnect_ivl)
 {
     zmq_assert (addr);
-    zmq_assert (addr->protocol == "tcp");
+    zmq_assert (addr->protocol == "rsocket");
     addr->to_string (endpoint);
     socket = session->get_socket ();
 }
 
-zmq::tcp_connecter_t::~tcp_connecter_t ()
+zmq::rsocket_connecter_t::~rsocket_connecter_t ()
 {
     zmq_assert (!connect_timer_started);
     zmq_assert (!reconnect_timer_started);
@@ -86,7 +86,7 @@ zmq::tcp_connecter_t::~tcp_connecter_t ()
     zmq_assert (s == retired_fd);
 }
 
-void zmq::tcp_connecter_t::process_plug ()
+void zmq::rsocket_connecter_t::process_plug ()
 {
     if (delayed_start)
         add_reconnect_timer ();
@@ -94,7 +94,7 @@ void zmq::tcp_connecter_t::process_plug ()
         start_connecting ();
 }
 
-void zmq::tcp_connecter_t::process_term (int linger_)
+void zmq::rsocket_connecter_t::process_term (int linger_)
 {
     if (connect_timer_started) {
         cancel_timer (connect_timer_id);
@@ -117,7 +117,7 @@ void zmq::tcp_connecter_t::process_term (int linger_)
     own_t::process_term (linger_);
 }
 
-void zmq::tcp_connecter_t::in_event ()
+void zmq::rsocket_connecter_t::in_event ()
 {
     //  We are not polling for incoming data, so we are actually called
     //  because of error here. However, we can get error on out event as well
@@ -125,7 +125,7 @@ void zmq::tcp_connecter_t::in_event ()
     out_event ();
 }
 
-void zmq::tcp_connecter_t::out_event ()
+void zmq::rsocket_connecter_t::out_event ()
 {
     if (connect_timer_started) {
         cancel_timer (connect_timer_id);
@@ -144,10 +144,10 @@ void zmq::tcp_connecter_t::out_event ()
         return;
     }
 
-    int rc = tune_tcp_socket (fd);
-    rc = rc | tune_tcp_keepalives (fd, options.tcp_keepalive, options.tcp_keepalive_cnt,
+    int rc = tune_rsocket_socket (fd);
+    rc = rc | tune_rsocket_keepalives (fd, options.tcp_keepalive, options.tcp_keepalive_cnt,
         options.tcp_keepalive_idle, options.tcp_keepalive_intvl);
-    rc = rc | tune_tcp_maxrt (fd, options.tcp_maxrt);
+    rc = rc | tune_rsocket_maxrt (fd, options.tcp_maxrt);
     if (rc != 0) {
         close ();
         add_reconnect_timer ();
@@ -168,7 +168,7 @@ void zmq::tcp_connecter_t::out_event ()
     socket->event_connected (endpoint, (int) fd);
 }
 
-void zmq::tcp_connecter_t::timer_event (int id_)
+void zmq::rsocket_connecter_t::timer_event (int id_)
 {
     zmq_assert (id_ == reconnect_timer_id || id_ == connect_timer_id);
     if (id_ == connect_timer_id) {
@@ -186,7 +186,7 @@ void zmq::tcp_connecter_t::timer_event (int id_)
     }
 }
 
-void zmq::tcp_connecter_t::start_connecting ()
+void zmq::rsocket_connecter_t::start_connecting ()
 {
     //  Open the connecting socket.
     const int rc = open ();
@@ -218,7 +218,7 @@ void zmq::tcp_connecter_t::start_connecting ()
     }
 }
 
-void zmq::tcp_connecter_t::add_connect_timer ()
+void zmq::rsocket_connecter_t::add_connect_timer ()
 {
     if (options.connect_timeout > 0) {
         add_timer (options.connect_timeout, connect_timer_id);
@@ -226,7 +226,7 @@ void zmq::tcp_connecter_t::add_connect_timer ()
     }
 }
 
-void zmq::tcp_connecter_t::add_reconnect_timer ()
+void zmq::rsocket_connecter_t::add_reconnect_timer ()
 {
     const int interval = get_new_reconnect_ivl ();
     add_timer (interval, reconnect_timer_id);
@@ -234,7 +234,7 @@ void zmq::tcp_connecter_t::add_reconnect_timer ()
     reconnect_timer_started = true;
 }
 
-int zmq::tcp_connecter_t::get_new_reconnect_ivl ()
+int zmq::rsocket_connecter_t::get_new_reconnect_ivl ()
 {
     //  The new interval is the current interval + random value.
     const int interval = current_reconnect_ivl +
@@ -250,40 +250,40 @@ int zmq::tcp_connecter_t::get_new_reconnect_ivl ()
     return interval;
 }
 
-int zmq::tcp_connecter_t::open ()
+int zmq::rsocket_connecter_t::open ()
 {
     zmq_assert (s == retired_fd);
 
     //  Resolve the address
-    if (addr->resolved.tcp_addr != NULL) {
-        LIBZMQ_DELETE(addr->resolved.tcp_addr);
+    if (addr->resolved.rsocket_addr != NULL) {
+        LIBZMQ_DELETE(addr->resolved.rsocket_addr);
     }
 
-    addr->resolved.tcp_addr = new (std::nothrow) tcp_address_t ();
-    alloc_assert (addr->resolved.tcp_addr);
-    int rc = addr->resolved.tcp_addr->resolve (
+    addr->resolved.rsocket_addr = new (std::nothrow) rsocket_address_t ();
+    alloc_assert (addr->resolved.rsocket_addr);
+    int rc = addr->resolved.rsocket_addr->resolve (
         addr->address.c_str (), false, options.ipv6);
     if (rc != 0) {
-        LIBZMQ_DELETE(addr->resolved.tcp_addr);
+        LIBZMQ_DELETE(addr->resolved.rsocket_addr);
         return -1;
     }
-    zmq_assert (addr->resolved.tcp_addr != NULL);
-    tcp_address_t * const tcp_addr = addr->resolved.tcp_addr;
+    zmq_assert (addr->resolved.rsocket_addr != NULL);
+    rsocket_address_t * const rsocket_addr = addr->resolved.rsocket_addr;
 
     //  Create the socket.
-    s = open_socket (tcp_addr->family (), SOCK_STREAM, IPPROTO_TCP);
+    s = rsocket (rsocket_addr->family (), SOCK_STREAM, IPPROTO_TCP);
 
     //  IPv6 address family not supported, try automatic downgrade to IPv4.
-    if (s == zmq::retired_fd && tcp_addr->family () == AF_INET6
+    if (s == zmq::retired_fd && rsocket_addr->family () == AF_INET6
     && errno == EAFNOSUPPORT
     && options.ipv6) {
-        rc = addr->resolved.tcp_addr->resolve (
+        rc = addr->resolved.rsocket_addr->resolve (
             addr->address.c_str (), false, false);
         if (rc != 0) {
-            LIBZMQ_DELETE(addr->resolved.tcp_addr);
+            LIBZMQ_DELETE(addr->resolved.rsocket_addr);
             return -1;
         }
-        s = open_socket (AF_INET, SOCK_STREAM, IPPROTO_TCP);
+        s = rsocket (AF_INET, SOCK_STREAM, IPPROTO_TCP);
     }
 
 #ifdef ZMQ_HAVE_WINDOWS
@@ -298,7 +298,7 @@ int zmq::tcp_connecter_t::open ()
 
     //  On some systems, IPv4 mapping in IPv6 sockets is disabled by default.
     //  Switch it on in such cases.
-    if (tcp_addr->family () == AF_INET6)
+    if (rsocket_addr->family () == AF_INET6)
         enable_ipv4_mapping (s);
 
     // Set the IP Type-Of-Service priority for this socket
@@ -314,35 +314,35 @@ int zmq::tcp_connecter_t::open ()
 
     //  Set the socket buffer limits for the underlying socket.
     if (options.sndbuf >= 0)
-        set_tcp_send_buffer (s, options.sndbuf);
+        set_rsocket_send_buffer (s, options.sndbuf);
     if (options.rcvbuf >= 0)
-        set_tcp_receive_buffer (s, options.rcvbuf);
+        set_rsocket_receive_buffer (s, options.rcvbuf);
 
     // Set the IP Type-Of-Service for the underlying socket
     if (options.tos != 0)
         set_ip_type_of_service (s, options.tos);
 
     // Set a source address for conversations
-    if (tcp_addr->has_src_addr ()) {
+    if (rsocket_addr->has_src_addr ()) {
         //  Allow reusing of the address, to connect to different servers
         //  using the same source port on the client.
         int flag = 1;
 #ifdef ZMQ_HAVE_WINDOWS
-        rc = setsockopt (s, SOL_SOCKET, SO_REUSEADDR, (const char*) &flag,
+        rc = rsetsockopt (s, SOL_SOCKET, SO_REUSEADDR, (const char*) &flag,
                 sizeof (int));
         wsa_assert (rc != SOCKET_ERROR);
 #else
-        rc = setsockopt (s, SOL_SOCKET, SO_REUSEADDR, &flag, sizeof (int));
+        rc = rsetsockopt (s, SOL_SOCKET, SO_REUSEADDR, &flag, sizeof (int));
         errno_assert (rc == 0);
 #endif
 
-        rc = ::bind (s, tcp_addr->src_addr (), tcp_addr->src_addrlen ());
+        rc = ::rbind (s, rsocket_addr->src_addr (), rsocket_addr->src_addrlen ());
         if (rc == -1)
             return -1;
     }
 
     //  Connect to the remote peer.
-    rc = ::connect (s, tcp_addr->addr (), tcp_addr->addrlen ());
+    rc = ::rconnect (s, rsocket_addr->addr (), rsocket_addr->addrlen ());
 
     //  Connect was successful immediately.
     if (rc == 0)
@@ -363,7 +363,7 @@ int zmq::tcp_connecter_t::open ()
     return -1;
 }
 
-zmq::fd_t zmq::tcp_connecter_t::connect ()
+zmq::fd_t zmq::rsocket_connecter_t::connect ()
 {
     //  Async connect has finished. Check whether an error occurred
     int err = 0;
@@ -373,7 +373,7 @@ zmq::fd_t zmq::tcp_connecter_t::connect ()
     socklen_t len = sizeof err;
 #endif
 
-    const int rc = getsockopt (s, SOL_SOCKET, SO_ERROR, (char*) &err, &len);
+    const int rc = rgetsockopt (s, SOL_SOCKET, SO_ERROR, (char*) &err, &len);
 
     //  Assert if the error was caused by 0MQ bug.
     //  Networking problems are OK. No need to assert.
@@ -411,14 +411,14 @@ zmq::fd_t zmq::tcp_connecter_t::connect ()
     return result;
 }
 
-void zmq::tcp_connecter_t::close ()
+void zmq::rsocket_connecter_t::close ()
 {
     zmq_assert (s != retired_fd);
 #ifdef ZMQ_HAVE_WINDOWS
     const int rc = closesocket (s);
     wsa_assert (rc != SOCKET_ERROR);
 #else
-    const int rc = ::close (s);
+    const int rc = ::rclose (s);
     errno_assert (rc == 0);
 #endif
     socket->event_closed (endpoint, (int) s);

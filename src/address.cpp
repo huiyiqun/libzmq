@@ -36,6 +36,7 @@
 #include "udp_address.hpp"
 #include "ipc_address.hpp"
 #include "tipc_address.hpp"
+#include "rsocket_address.hpp"
 
 #if defined ZMQ_HAVE_VMCI
 #include "vmci_address.hpp"
@@ -89,6 +90,12 @@ zmq::address_t::~address_t ()
         }
     }
 #endif
+    else
+    if (protocol == "rsocket") {
+        if (resolved.rsocket_addr) {
+            LIBZMQ_DELETE(resolved.rsocket_addr);
+        }
+    }
 }
 
 int zmq::address_t::to_string (std::string &addr_) const
@@ -122,6 +129,12 @@ int zmq::address_t::to_string (std::string &addr_) const
             return resolved.vmci_addr->to_string (addr_);
     }
 #endif
+
+    else
+    if (protocol == "rsocket") {
+        if (resolved.rsocket_addr)
+            return resolved.rsocket_addr->to_string (addr_);
+    }
 
     if (!protocol.empty () && !address.empty ()) {
         std::stringstream s;

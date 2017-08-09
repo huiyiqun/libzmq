@@ -30,13 +30,13 @@
 #include "precompiled.hpp"
 #include "macros.hpp"
 #include "ip.hpp"
-#include "tcp.hpp"
+#include "rsocket.hpp"
 #include "err.hpp"
 
 #if !defined ZMQ_HAVE_WINDOWS
 #include <fcntl.h>
 #include <sys/types.h>
-#include <sys/socket.h>
+#include <rdma/rsocket.h>
 #include <netinet/in.h>
 #include <netinet/tcp.h>
 #endif
@@ -45,45 +45,45 @@
 #include <ioctl.h>
 #endif
 
-int zmq::tune_tcp_socket (fd_t s_)
+int zmq::tune_rsocket_socket (fd_t s_)
 {
     //  Disable Nagle's algorithm. We are doing data batching on 0MQ level,
     //  so using Nagle wouldn't improve throughput in anyway, but it would
     //  hurt latency.
     int nodelay = 1;
-    int rc = setsockopt (s_, IPPROTO_TCP, TCP_NODELAY, (char*) &nodelay,
+    int rc = rsetsockopt (s_, IPPROTO_TCP, TCP_NODELAY, (char*) &nodelay,
         sizeof (int));
-    tcp_assert_tuning_error (s_, rc);
+    rsocket_assert_tuning_error (s_, rc);
     if (rc != 0)
         return rc;
 
 #ifdef ZMQ_HAVE_OPENVMS
     //  Disable delayed acknowledgements as they hurt latency significantly.
     int nodelack = 1;
-    rc = setsockopt (s_, IPPROTO_TCP, TCP_NODELACK, (char*) &nodelack,
+    rc = rsetsockopt (s_, IPPROTO_TCP, TCP_NODELACK, (char*) &nodelack,
         sizeof (int));
-    tcp_assert_tuning_error (s_, rc);
+    rsocket_assert_tuning_error (s_, rc);
 #endif
     return rc;
 }
 
-int zmq::set_tcp_send_buffer (fd_t sockfd_, int bufsize_)
+int zmq::set_rsocket_send_buffer (fd_t sockfd_, int bufsize_)
 {
-    const int rc = setsockopt (sockfd_, SOL_SOCKET, SO_SNDBUF,
+    const int rc = rsetsockopt (sockfd_, SOL_SOCKET, SO_SNDBUF,
         (char*) &bufsize_, sizeof bufsize_);
-    tcp_assert_tuning_error (sockfd_, rc);
+    rsocket_assert_tuning_error (sockfd_, rc);
     return rc;
 }
 
-int zmq::set_tcp_receive_buffer (fd_t sockfd_, int bufsize_)
+int zmq::set_rsocket_receive_buffer (fd_t sockfd_, int bufsize_)
 {
-    const int rc = setsockopt (sockfd_, SOL_SOCKET, SO_RCVBUF,
+    const int rc = rsetsockopt (sockfd_, SOL_SOCKET, SO_RCVBUF,
         (char *) &bufsize_, sizeof bufsize_);
-    tcp_assert_tuning_error (sockfd_, rc);
+    rsocket_assert_tuning_error (sockfd_, rc);
     return rc;
 }
 
-int zmq::tune_tcp_keepalives (fd_t s_, int keepalive_, int keepalive_cnt_,
+int zmq::tune_rsocket_keepalives (fd_t s_, int keepalive_, int keepalive_cnt_,
         int keepalive_idle_, int keepalive_intvl_)
 {
     // These options are used only under certain #ifdefs below.
@@ -99,7 +99,7 @@ int zmq::tune_tcp_keepalives (fd_t s_, int keepalive_, int keepalive_cnt_,
     //  All values = -1 means skip and leave it for OS
 #ifdef ZMQ_HAVE_WINDOWS
     if (keepalive_ != -1) {
-        tcp_keepalive keepalive_opts;
+        rsocket_keepalive keepalive_opts;
         keepalive_opts.onoff = keepalive_;
         keepalive_opts.keepalivetime = keepalive_idle_ != -1 ?
                                             keepalive_idle_ * 1000 : 7200000;
@@ -108,24 +108,24 @@ int zmq::tune_tcp_keepalives (fd_t s_, int keepalive_, int keepalive_cnt_,
         DWORD num_bytes_returned;
         int rc = WSAIoctl (s_, SIO_KEEPALIVE_VALS, &keepalive_opts,
             sizeof (keepalive_opts), NULL, 0, &num_bytes_returned, NULL, NULL);
-        tcp_assert_tuning_error (s_, rc);
+        rsocket_assert_tuning_error (s_, rc);
         if (rc == SOCKET_ERROR)
             return rc;
     }
 #else
 #ifdef ZMQ_HAVE_SO_KEEPALIVE
     if (keepalive_ != -1) {
-        int rc = setsockopt (s_, SOL_SOCKET, SO_KEEPALIVE,
+        int rc = rsetsockopt (s_, SOL_SOCKET, SO_KEEPALIVE,
                 (char*) &keepalive_, sizeof (int));
-        tcp_assert_tuning_error (s_, rc);
+        rsocket_assert_tuning_error (s_, rc);
         if (rc != 0)
             return rc;
 
 #ifdef ZMQ_HAVE_TCP_KEEPCNT
         if (keepalive_cnt_ != -1) {
-            int rc = setsockopt (s_, IPPROTO_TCP, TCP_KEEPCNT,
+            int rc = rsetsockopt (s_, IPPROTO_TCP, TCP_KEEPCNT,
                     &keepalive_cnt_, sizeof (int));
-            tcp_assert_tuning_error (s_, rc);
+            rsocket_assert_tuning_error (s_, rc);
             if (rc != 0)
                 return rc;
         }
@@ -133,18 +133,18 @@ int zmq::tune_tcp_keepalives (fd_t s_, int keepalive_, int keepalive_cnt_,
 
 #ifdef ZMQ_HAVE_TCP_KEEPIDLE
         if (keepalive_idle_ != -1) {
-            int rc = setsockopt (s_, IPPROTO_TCP, TCP_KEEPIDLE,
+            int rc = rsetsockopt (s_, IPPROTO_TCP, TCP_KEEPIDLE,
                     &keepalive_idle_, sizeof (int));
-            tcp_assert_tuning_error (s_, rc);
+            rsocket_assert_tuning_error (s_, rc);
             if (rc != 0)
                 return rc;
         }
 #else // ZMQ_HAVE_TCP_KEEPIDLE
 #ifdef ZMQ_HAVE_TCP_KEEPALIVE
         if (keepalive_idle_ != -1) {
-            int rc = setsockopt (s_, IPPROTO_TCP, TCP_KEEPALIVE,
+            int rc = rsetsockopt (s_, IPPROTO_TCP, TCP_KEEPALIVE,
                     &keepalive_idle_, sizeof (int));
-            tcp_assert_tuning_error (s_, rc);
+            rsocket_assert_tuning_error (s_, rc);
             if (rc != 0)
                 return rc;
         }
@@ -153,9 +153,9 @@ int zmq::tune_tcp_keepalives (fd_t s_, int keepalive_, int keepalive_cnt_,
 
 #ifdef ZMQ_HAVE_TCP_KEEPINTVL
         if (keepalive_intvl_ != -1) {
-            int rc = setsockopt (s_, IPPROTO_TCP, TCP_KEEPINTVL,
+            int rc = rsetsockopt (s_, IPPROTO_TCP, TCP_KEEPINTVL,
                     &keepalive_intvl_, sizeof (int));
-            tcp_assert_tuning_error (s_, rc);
+            rsocket_assert_tuning_error (s_, rc);
             if (rc != 0)
                 return rc;
         }
@@ -167,7 +167,7 @@ int zmq::tune_tcp_keepalives (fd_t s_, int keepalive_, int keepalive_cnt_,
     return 0;
 }
 
-int zmq::tune_tcp_maxrt (fd_t sockfd_, int timeout_)
+int zmq::tune_rsocket_maxrt (fd_t sockfd_, int timeout_)
 {
     if (timeout_ <= 0)
         return 0;
@@ -177,25 +177,25 @@ int zmq::tune_tcp_maxrt (fd_t sockfd_, int timeout_)
 #if defined (ZMQ_HAVE_WINDOWS) && defined (TCP_MAXRT)
     // msdn says it's supported in >= Vista, >= Windows Server 2003
     timeout_ /= 1000;    // in seconds
-    int rc = setsockopt (sockfd_, IPPROTO_TCP, TCP_MAXRT, (char*) &timeout_,
+    int rc = rsetsockopt (sockfd_, IPPROTO_TCP, TCP_MAXRT, (char*) &timeout_,
         sizeof (timeout_));
-    tcp_assert_tuning_error (sockfd_, rc);
+    rsocket_assert_tuning_error (sockfd_, rc);
     return rc;
 // FIXME: should be ZMQ_HAVE_TCP_USER_TIMEOUT
 #elif defined (TCP_USER_TIMEOUT)
-    int rc = setsockopt (sockfd_, IPPROTO_TCP, TCP_USER_TIMEOUT, &timeout_,
+    int rc = rsetsockopt (sockfd_, IPPROTO_TCP, TCP_USER_TIMEOUT, &timeout_,
         sizeof (timeout_));
-    tcp_assert_tuning_error (sockfd_, rc);
+    rsocket_assert_tuning_error (sockfd_, rc);
     return rc;
 #endif
     return 0;
 }
 
- int zmq::tcp_write (fd_t s_, const void *data_, size_t size_)
+ int zmq::rsocket_write (fd_t s_, const void *data_, size_t size_)
 {
 #ifdef ZMQ_HAVE_WINDOWS
 
-    int nbytes = send (s_, (char*) data_, (int) size_, 0);
+    int nbytes = rsend (s_, (char*) data_, (int) size_, 0);
 
     //  If not a single byte can be written to the socket in non-blocking mode
     //  we'll get an error (this may happen during the speculative write).
@@ -224,7 +224,7 @@ int zmq::tune_tcp_maxrt (fd_t sockfd_, int timeout_)
     return nbytes;
 
 #else
-    ssize_t nbytes = send (s_, data_, size_, 0);
+    ssize_t nbytes = rsend (s_, data_, size_, 0);
 
     //  Several errors are OK. When speculative write is being done we may not
     //  be able to write a single byte from the socket. Also, SIGSTOP issued
@@ -252,11 +252,11 @@ int zmq::tune_tcp_maxrt (fd_t sockfd_, int timeout_)
 #endif
 }
 
-int zmq::tcp_read (fd_t s_, void *data_, size_t size_)
+int zmq::rsocket_read (fd_t s_, void *data_, size_t size_)
 {
 #ifdef ZMQ_HAVE_WINDOWS
 
-    const int rc = recv (s_, (char*) data_, (int) size_, 0);
+    const int rc = rrecv (s_, (char*) data_, (int) size_, 0);
 
     //  If not a single byte can be read from the socket in non-blocking mode
     //  we'll get an error (this may happen during the speculative read).
@@ -281,7 +281,7 @@ int zmq::tcp_read (fd_t s_, void *data_, size_t size_)
 
 #else
 
-    const ssize_t rc = recv (s_, data_, size_, 0);
+    const ssize_t rc = rrecv (s_, data_, size_, 0);
 
     //  Several errors are OK. When speculative read is being done we may not
     //  be able to read a single byte from the socket. Also, SIGSTOP issued
@@ -300,7 +300,7 @@ int zmq::tcp_read (fd_t s_, void *data_, size_t size_)
 #endif
 }
 
-void zmq::tcp_assert_tuning_error (zmq::fd_t s_, int rc_)
+void zmq::rsocket_assert_tuning_error (zmq::fd_t s_, int rc_)
 {
     if (rc_ == 0)
         return;
@@ -313,7 +313,7 @@ void zmq::tcp_assert_tuning_error (zmq::fd_t s_, int rc_)
     socklen_t len = sizeof err;
 #endif
     
-    int rc = getsockopt (s_, SOL_SOCKET, SO_ERROR, (char*) &err, &len);
+    int rc = rgetsockopt (s_, SOL_SOCKET, SO_ERROR, (char*) &err, &len);
     
     //  Assert if the error was caused by 0MQ bug.
     //  Networking problems are OK. No need to assert.

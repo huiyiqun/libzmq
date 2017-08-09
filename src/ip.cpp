@@ -35,7 +35,7 @@
 #if !defined ZMQ_HAVE_WINDOWS
 #include <fcntl.h>
 #include <sys/types.h>
-#include <sys/socket.h>
+#include <rdma/rsocket.h>
 #include <netdb.h>
 #include <netinet/in.h>
 #include <netinet/tcp.h>
@@ -134,7 +134,7 @@ int zmq::get_peer_ip_address (fd_t sockfd_, std::string &ip_addr_)
 #else
     socklen_t addrlen = sizeof ss;
 #endif
-    rc = getpeername (sockfd_, (struct sockaddr*) &ss, &addrlen);
+    rc = rgetpeername (sockfd_, (struct sockaddr*) &ss, &addrlen);
 #ifdef ZMQ_HAVE_WINDOWS
     if (rc == SOCKET_ERROR) {
         const int last_error = WSAGetLastError();

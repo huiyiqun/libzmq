@@ -39,6 +39,7 @@
 #include "tipc_connecter.hpp"
 #include "socks_connecter.hpp"
 #include "vmci_connecter.hpp"
+#include "rsocket_connecter.hpp"
 #include "pgm_sender.hpp"
 #include "pgm_receiver.hpp"
 #include "address.hpp"
@@ -696,6 +697,14 @@ void zmq::session_base_t::start_connecting (bool wait_)
         return;
     }
 #endif
+
+    if (addr->protocol == "rsocket") {
+        rsocket_connecter_t *connecter = new (std::nothrow)
+            rsocket_connecter_t (io_thread, this, options, addr, wait_);
+        alloc_assert (connecter);
+        launch_child (connecter);
+        return;
+    }
 
     zmq_assert (false);
 }

@@ -27,8 +27,8 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef __TCP_CONNECTER_HPP_INCLUDED__
-#define __TCP_CONNECTER_HPP_INCLUDED__
+#ifndef __RSOCKET_CONNECTER_HPP_INCLUDED__
+#define __RSOCKET_CONNECTER_HPP_INCLUDED__
 
 #include "fd.hpp"
 #include "own.hpp"
@@ -42,16 +42,16 @@ namespace zmq
     class session_base_t;
     struct address_t;
 
-    class tcp_connecter_t : public own_t, public io_object_t
+    class rsocket_connecter_t : public own_t, public io_object_t
     {
     public:
 
         //  If 'delayed_start' is true connecter first waits for a while,
         //  then starts connection process.
-        tcp_connecter_t (zmq::io_thread_t *io_thread_,
+        rsocket_connecter_t (zmq::io_thread_t *io_thread_,
             zmq::session_base_t *session_, const options_t &options_,
             address_t *addr_, bool delayed_start_);
-        ~tcp_connecter_t ();
+        ~rsocket_connecter_t ();
 
     private:
 
@@ -125,8 +125,8 @@ namespace zmq
         // Socket
         zmq::socket_base_t *socket;
 
-        tcp_connecter_t (const tcp_connecter_t&);
-        const tcp_connecter_t &operator = (const tcp_connecter_t&);
+        rsocket_connecter_t (const rsocket_connecter_t&);
+        const rsocket_connecter_t &operator = (const rsocket_connecter_t&);
     };
 
 }

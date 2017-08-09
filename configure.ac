@@ -360,6 +360,7 @@ AC_CHECK_HEADERS(\
     netinet/tcp.h \
     netinet/in.h \
     sys/socket.h \
+    rdma/rsocket.h \
     sys/time.h)
 
 # Check if we have ifaddrs.h header file.

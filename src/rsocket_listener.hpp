@@ -27,14 +27,14 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef __ZMQ_TCP_LISTENER_HPP_INCLUDED__
-#define __ZMQ_TCP_LISTENER_HPP_INCLUDED__
+#ifndef __ZMQ_RSOCKET_LISTENER_HPP_INCLUDED__
+#define __ZMQ_RSOCKET_LISTENER_HPP_INCLUDED__
 
 #include "fd.hpp"
 #include "own.hpp"
 #include "stdint.hpp"
 #include "io_object.hpp"
-#include "tcp_address.hpp"
+#include "rsocket_address.hpp"
 
 namespace zmq
 {
@@ -42,13 +42,13 @@ namespace zmq
     class io_thread_t;
     class socket_base_t;
 
-    class tcp_listener_t : public own_t, public io_object_t
+    class rsocket_listener_t : public own_t, public io_object_t
     {
     public:
 
-        tcp_listener_t (zmq::io_thread_t *io_thread_,
+        rsocket_listener_t (zmq::io_thread_t *io_thread_,
             zmq::socket_base_t *socket_, const options_t &options_);
-        ~tcp_listener_t ();
+        ~rsocket_listener_t ();
 
         //  Set address to listen on.
         int set_address (const char *addr_);
@@ -75,7 +75,7 @@ namespace zmq
         fd_t accept ();
 
         //  Address to listen on.
-        tcp_address_t address;
+        rsocket_address_t address;
 
         //  Underlying socket.
         fd_t s;
@@ -89,8 +89,8 @@ namespace zmq
        // String representation of endpoint to bind to
         std::string endpoint;
 
-        tcp_listener_t (const tcp_listener_t&);
-        const tcp_listener_t &operator = (const tcp_listener_t&);
+        rsocket_listener_t (const rsocket_listener_t&);
+        const rsocket_listener_t &operator = (const rsocket_listener_t&);
     };
 
 }

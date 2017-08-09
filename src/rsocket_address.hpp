@@ -27,26 +27,26 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef __ZMQ_TCP_ADDRESS_HPP_INCLUDED__
-#define __ZMQ_TCP_ADDRESS_HPP_INCLUDED__
+#ifndef __ZMQ_RSOCKET_ADDRESS_HPP_INCLUDED__
+#define __ZMQ_RSOCKET_ADDRESS_HPP_INCLUDED__
 
 #if !defined ZMQ_HAVE_WINDOWS
-#include <sys/socket.h>
+#include <rdma/rsocket.h>
 #include <netinet/in.h>
 #endif
 
 namespace zmq
 {
 
-    class tcp_address_t
+    class rsocket_address_t
     {
     public:
 
-        tcp_address_t ();
-        tcp_address_t (const sockaddr *sa, socklen_t sa_len);
-        virtual ~tcp_address_t ();
+        rsocket_address_t ();
+        rsocket_address_t (const sockaddr *sa, socklen_t sa_len);
+        virtual ~rsocket_address_t ();
 
-        //  This function translates textual TCP address into an address
+        //  This function translates textual RSOCKET address into an address
         //  structure. If 'local' is true, names are resolved as local interface
         //  names. If it is false, names are resolved as remote hostnames.
         //  If 'ipv6' is true, the name may resolve to IPv6 address.
@@ -91,12 +91,12 @@ namespace zmq
         bool _has_src_addr;
     };
 
-    class tcp_address_mask_t : public tcp_address_t
+    class rsocket_address_mask_t : public rsocket_address_t
     {
     public:
-        tcp_address_mask_t ();
+        rsocket_address_mask_t ();
 
-        // This function enhances tcp_address_t::resolve() with ability to parse
+        // This function enhances rsocket_address_t::resolve() with ability to parse
         // additional cidr-like(/xx) mask value at the end of the name string.
         // Works only with remote hostnames.
         int resolve (const char *name_, bool ipv6_);

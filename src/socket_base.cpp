@@ -65,6 +65,9 @@
 #include "tcp_address.hpp"
 #include "udp_address.hpp"
 #include "tipc_address.hpp"
+#include "rsocket_address.hpp"
+#include "rsocket_connecter.hpp"
+#include "rsocket_listener.hpp"
 #include "mailbox.hpp"
 #include "mailbox_safe.hpp"
 
@@ -72,6 +75,7 @@
 #include "vmci_address.hpp"
 #include "vmci_listener.hpp"
 #endif
+
 
 #ifdef ZMQ_HAVE_OPENPGM
 #include "pgm_socket.hpp"
@@ -293,7 +297,8 @@ int zmq::socket_base_t::check_protocol (const std::string &protocol_)
 #if defined ZMQ_HAVE_VMCI
     &&  protocol_ != "vmci"
 #endif
-    &&  protocol_ != "udp") {
+    &&  protocol_ != "udp"
+    &&  protocol_ != "rsocket") {
         errno = EPROTONOSUPPORT;
         return -1;
     }
@@ -621,6 +626,25 @@ int zmq::socket_base_t::bind (const char *addr_)
         return 0;
     }
 
+    if (protocol == "rsocket") {
+        rsocket_listener_t *listener = new (std::nothrow) rsocket_listener_t (
+            io_thread, this, options);
+        alloc_assert (listener);
+        rc = listener->set_address (address.c_str ());
+        if (rc != 0) {
+            LIBZMQ_DELETE(listener);
+            event_bind_failed (address, zmq_errno());
+            return -1;
+        }
+
+        // Save last endpoint URI
+        listener->get_address (last_endpoint);
+
+        add_endpoint (last_endpoint.c_str (), (own_t *) listener, NULL);
+        options.connected = true;
+        return 0;
+    }
+
 #if !defined ZMQ_HAVE_WINDOWS && !defined ZMQ_HAVE_OPENVMS
     if (protocol == "ipc") {
         ipc_listener_t *listener = new (std::nothrow) ipc_listener_t (
@@ -835,8 +859,8 @@ int zmq::socket_base_t::connect (const char *addr_)
     alloc_assert (paddr);
 
     //  Resolve address (if needed by the protocol)
-    if (protocol == "tcp") {
-        //  Do some basic sanity checks on tcp:// address syntax
+    if (protocol == "tcp" || protocol == "rsocket") {
+        //  Do some basic sanity checks on address syntax
         //  - hostname starts with digit or letter, with embedded '-' or '.'
         //  - IPv6 address may contain hex chars and colons.
         //  - IPv6 link local address may contain % followed by interface name / zone_id
@@ -877,6 +901,7 @@ int zmq::socket_base_t::connect (const char *addr_)
         }
         //  Defer resolution until a socket is opened
         paddr->resolved.tcp_addr = NULL;
+        paddr->resolved.rsocket_addr = NULL;
     }
 #if !defined ZMQ_HAVE_WINDOWS && !defined ZMQ_HAVE_OPENVMS
     else

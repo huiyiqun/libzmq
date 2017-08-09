@@ -37,6 +37,8 @@
 #include <poll.h>
 #endif
 
+#include <rdma/rsocket.h>
+
 #include "precompiled.hpp"
 #include "poller.hpp"
 
@@ -230,7 +232,7 @@ int zmq::signaler_t::wait (int timeout_)
     struct pollfd pfd;
     pfd.fd = r;
     pfd.events = POLLIN;
-    int rc = poll (&pfd, 1, timeout_);
+    int rc = rpoll (&pfd, 1, timeout_);
     if (unlikely (rc < 0)) {
         errno_assert (errno == EINTR);
         return -1;

@@ -202,6 +202,7 @@ check_cxx_symbol_exists (SO_PEERCRED sys/socket.h ZMQ_HAVE_SO_PEERCRED)
 check_cxx_symbol_exists (LOCAL_PEERCRED sys/socket.h ZMQ_HAVE_LOCAL_PEERCRED)
 
 find_library (RT_LIBRARY rt)
+find_library (RDMACM_LIBRARY rdmacm)
 
 find_package (Threads)
 
@@ -546,6 +547,10 @@ set (cxx-sources
         tcp_address.cpp
         tcp_connecter.cpp
         tcp_listener.cpp
+        rsocket.cpp
+        rsocket_address.cpp
+        rsocket_connecter.cpp
+        rsocket_listener.cpp
         thread.cpp
         trie.cpp
         v1_decoder.cpp
@@ -838,6 +843,10 @@ if (BUILD_SHARED)
   if (RT_LIBRARY)
     target_link_libraries (libzmq ${RT_LIBRARY})
   endif ()
+
+  if (RDMACM_LIBRARY)
+      target_link_libraries (libzmq ${RDMACM_LIBRARY})
+  endif ()
 endif ()
 
 if (BUILD_SHARED)
@@ -861,6 +870,10 @@ if (BUILD_SHARED)
 
       if (RT_LIBRARY)
         target_link_libraries (${perf-tool} ${RT_LIBRARY})
+      endif ()
+
+      if (RDMACM_LIBRARY)
+        target_link_libraries (${perf-tool} ${RDMACM_LIBRARY})
       endif ()
 
       if (ZMQ_BUILD_FRAMEWORK)
